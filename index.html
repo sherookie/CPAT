@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bee</title>
+  
+ 
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐝</text></svg>">
+  
+ 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  
+ 
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+ 
+      background-color: transparent; 
+ 
+      cursor: none; 
+    }
+
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <script>
+ 
+    const PETAL_COLOR = '#C1E1DC'; 
+    const CENTER_COLOR = '#F16E22'; 
+    const STEM_COLOR = '#0C6B37';   
+
+    let flowers = [];
+
+    function setup() {
+      createCanvas(windowWidth, windowHeight);
+      noCursor(); 
+      initFlowers(); 
+    }
+
+    function draw() {
+  
+      clear(); 
+
+  
+      for (let f of flowers) {
+        f.update();
+        f.display();
+      }
+
+  
+      let beeX = (mouseX === 0 && mouseY === 0) ? width / 2 : mouseX;
+      let beeY = (mouseX === 0 && mouseY === 0) ? height / 2 : mouseY;
+
+  
+      drawBee(beeX, beeY);
+    }
+
+  
+    function drawBee(x, y) {
+      push();
+  
+      translate(x, y + sin(frameCount * 0.2) * 4);
+      
+  
+      rotate(PI / -12);
+
+      noStroke();
+
+  
+      fill(255, 255, 255, 180);
+  
+      let wingFlutter = sin(frameCount * 1.5) * 2;
+      ellipse(-2, -8, 12, 18 + wingFlutter);
+      ellipse(6, -6, 14, 20 - wingFlutter);
+
+  
+      fill(30);
+      triangle(-12, 0, -18, -3, -18, 3);
+
+  
+      fill('#FFD100'); 
+      rectMode(CENTER);
+      rect(0, 0, 24, 14, 7); // (x, y, 寬, 高, 圓角)
+
+      //身體上的黑色條紋
+      fill(30);
+      rect(-3, 0, 4, 14);
+      rect(5, 0, 4, 14);
+
+      //蜜蜂的眼睛
+      fill(255); // 眼白
+      circle(10, -2, 6);
+      fill(30);  // 瞳孔
+      circle(11, -2, 3);
+
+      pop();
+    }
+
+    
+    function windowResized() {
+      resizeCanvas(windowWidth, windowHeight);
+      initFlowers();
+    }
+
+    
+    function initFlowers() {
+      flowers = [];
+      const numFlowers = 5;
+      
+    
+      let D = min(width, height) / 3.2; 
+      if (D * 4.5 > width) D = width / 4.8; 
+      
+      let r = D * 0.22; 
+      let spacingX = D * 0.82; 
+      let offsetY = sqrt(D * D - spacingX * spacingX) / 2;
+      let startX = width / 2 - (2 * spacingX);
+      let cy = height / 2;
+
+      let baseSpeed = 0.006; 
+
+      for (let i = 0; i < numFlowers; i++) {
+        let tx = startX + i * spacingX;
+        let ty = cy + (i % 2 === 0 ? offsetY : -offsetY);
+
+        let angleOffset = 0;
+        let rotSpeed = baseSpeed;
+        
+        if (i === 0) {
+          angleOffset = 0;
+          rotSpeed = baseSpeed;
+        } else {
+          let prevF = flowers[i - 1];
+          let alpha = atan2(ty - prevF.targetY, tx - prevF.targetX);
+          angleOffset = -prevF.baseAngle + 2 * alpha + PI + (PI / 16);
+          rotSpeed = -prevF.rotSpeed; 
+        }
+
+        flowers.push(new Flower(tx, ty, r, angleOffset, rotSpeed, i));
+      }
+    }
+
+   
+    class Flower {
+      constructor(targetX, targetY, r, baseAngle, rotSpeed, index) {
+        this.targetX = targetX;
+        this.targetY = targetY;
+        this.r = r;
+        this.baseAngle = baseAngle;
+        this.rotSpeed = rotSpeed;
+        this.numPetals = 16;
+        
+        this.innerOffset = this.r * 0.5; 
+        this.pLength = this.r * 1.85;    
+        this.wRoot = this.r * 0.28;      
+        this.wTip = this.r * 0.52;       
+        
+        this.growT = 0;         
+        this.bloomProgress = 0; 
+        
+        
+        this.delayFrames = index * 6; 
+        
+        this.P0 = createVector(targetX, height + 50); 
+        this.P3 = createVector(targetX, targetY); 
+        
+        let curveDir = random(-50, 50); 
+        this.P1 = createVector(this.P0.x + curveDir, this.P0.y - (this.P0.y - targetY) * 0.3);
+        this.P2 = createVector(this.P3.x - curveDir, this.P3.y + (this.P0.y - targetY) * 0.3);
+        
+        this.leaves = [];
+        let numLeaves = floor(random(1, 4)); 
+        
+        let currentSide = random() > 0.5 ? 1 : -1; 
+        let minT = 0.25;
+        let maxT = 0.8;
+        let segmentStep = (maxT - minT) / numLeaves;
+
+        for (let i = 0; i < numLeaves; i++) {
+          let leafT = minT + (i * segmentStep) + random(segmentStep * 0.2, segmentStep * 0.8);
+          this.leaves.push({
+            t: leafT,                     
+            side: currentSide,            
+            size: r * random(1.0, 1.6),   
+            grown: 0 
+          });
+          currentSide *= -1; 
+        }
+      }
+
+      update() {
+        if (frameCount > this.delayFrames) {
+          if (this.growT < 1) {
+          
+            this.growT += 0.025; 
+          } else {
+            this.growT = 1;
+            if (this.bloomProgress < 1) {
+              
+              this.bloomProgress += 0.06; 
+            }
+          }
+
+          for (let leaf of this.leaves) {
+            if (this.growT > leaf.t) {
+              if (leaf.grown < 1) leaf.grown += 0.1;
+            }
+          }
+        }
+      }
+
+      display() {
+        let currentTipX = bezierPoint(this.P0.x, this.P1.x, this.P2.x, this.P3.x, this.growT);
+        let currentTipY = bezierPoint(this.P0.y, this.P1.y, this.P2.y, this.P3.y, this.growT);
+
+        stroke(STEM_COLOR);
+        strokeWeight(12);
+        strokeCap(ROUND);
+        noFill();
+        beginShape();
+        for (let t = 0; t <= this.growT; t += 0.02) {
+          let bx = bezierPoint(this.P0.x, this.P1.x, this.P2.x, this.P3.x, t);
+          let by = bezierPoint(this.P0.y, this.P1.y, this.P2.y, this.P3.y, t);
+          vertex(bx, by);
+        }
+        vertex(currentTipX, currentTipY); 
+        endShape();
+
+        noStroke();
+        fill(STEM_COLOR);
+        for (let leaf of this.leaves) {
+          if (leaf.grown > 0) {
+            let lx = bezierPoint(this.P0.x, this.P1.x, this.P2.x, this.P3.x, leaf.t);
+            let ly = bezierPoint(this.P0.y, this.P1.y, this.P2.y, this.P3.y, leaf.t);
+            let tx = bezierTangent(this.P0.x, this.P1.x, this.P2.x, this.P3.x, leaf.t);
+            let ty = bezierTangent(this.P0.y, this.P1.y, this.P2.y, this.P3.y, leaf.t);
+            let tangentAngle = atan2(ty, tx);
+
+            push();
+            translate(lx, ly);
+            rotate(tangentAngle + leaf.side * PI / 3.5); 
+            
+            let lw = leaf.size * leaf.grown;
+            let lh = leaf.size * 0.45 * leaf.grown;
+            ellipseMode(CORNER);
+            ellipse(0, -lh/2, lw, lh);
+            pop();
+          }
+        }
+
+        if (this.bloomProgress > 0) {
+          push();
+          translate(currentTipX, currentTipY);
+          
+          let currentRot = this.baseAngle + (frameCount * this.rotSpeed);
+          rotate(currentRot);
+
+          fill(PETAL_COLOR);
+          noStroke();
+          for (let i = 0; i < this.numPetals; i++) {
+            push();
+            rotate((TWO_PI / this.numPetals) * i);
+            
+            let currentL = this.pLength * this.bloomProgress;
+            let startX = this.innerOffset;
+            let tipX = startX + currentL - (this.wTip / 2); 
+            
+            if (tipX > startX) {
+              quad(
+                startX, -this.wRoot / 2, 
+                tipX, -this.wTip / 2, 
+                tipX, this.wTip / 2, 
+                startX, this.wRoot / 2
+              );
+              circle(tipX, 0, this.wTip);
+            }
+            pop();
+          }
+
+          fill(CENTER_COLOR);
+          circle(0, 0, this.r * 1.5 * this.bloomProgress);
+          pop();
+        }
+      }
+    }
+  </script>
+</body>
+</html>
