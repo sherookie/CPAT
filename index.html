@@ -4,11 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bee</title>
-  
-  <!-- 加入蜜蜂網頁小圖示 (Favicon) -->
+ 
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐝</text></svg>">
   
-  <!-- 引入 p5.js 函式庫 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
   
   <style>
@@ -16,9 +14,7 @@
       margin: 0;
       padding: 0;
       overflow: hidden;
-      /* 背景顏色改為透明 */
       background-color: transparent; 
-      /* 隱藏系統預設的滑鼠游標 */
       cursor: none; 
     }
 
@@ -29,15 +25,15 @@
 </head>
 <body>
   <script>
-    // 顏色設定
-    const PETAL_COLOR = '#C1E1DC';       // 清新淡灰藍色 (預設)
-    const HOVER_PETAL_COLOR = '#FFE156'; // 亮黃色 (被蜜蜂碰到時的顏色)
-    const CENTER_COLOR = '#F16E22';      // 飽和的橘色
-    const STEM_COLOR = '#0C6B37';        // 濃郁的深綠色
+
+    const PETAL_COLOR = '#C1E1DC';       
+    const HOVER_PETAL_COLOR = '#FFE156'; 
+    const CENTER_COLOR = '#F16E22';     
+    const STEM_COLOR = '#0C6B37';     
 
     let flowers = [];
     
-    // 全域時間與速度控制 (用於齒輪同步加速)
+    // 齒輪同步加速
     let globalTime = 0;
     let globalSpeedMultiplier = 1;
     
@@ -51,13 +47,13 @@
     }
 
     function draw() {
-      clear(); // 保持背景透明
+      clear();
 
-      // 取得蜜蜂位置
+      // 蜜蜂位置
       let beeX = (mouseX === 0 && mouseY === 0) ? width / 2 : mouseX;
       let beeY = (mouseX === 0 && mouseY === 0) ? height / 2 : mouseY;
 
-      // 判斷蜜蜂的左右方向 (比起前一幀的位置)
+      // 判斷蜜蜂的左右方向
       if (mouseX > pmouseX) {
         beeFacingRight = true;
       } else if (mouseX < pmouseX) {
@@ -67,7 +63,6 @@
       // 偵測是否有任何花朵被碰到
       let anyHovered = false;
 
-      // 更新所有花朵的狀態
       for (let f of flowers) {
         f.update(beeX, beeY);
         if (f.isHovered) {
@@ -75,11 +70,11 @@
         }
       }
 
-      // 如果有碰到花，全域速度倍率提升 (平滑加速與減速)
+      // 如果有碰到花，全域速度倍率提升
       let targetSpeed = anyHovered ? 4 : 1; // 碰到時變 4 倍速
       globalSpeedMultiplier += (targetSpeed - globalSpeedMultiplier) * 0.1;
 
-      // 推進全域時間 (保證所有齒輪絕對同步)
+      // 有齒輪同步
       globalTime += globalSpeedMultiplier;
 
       // 繪製所有花朵
@@ -91,43 +86,34 @@
       drawBee(beeX, beeY, beeFacingRight);
     }
 
-    // --- 自定義繪製小蜜蜂 ---
     function drawBee(x, y, facingRight) {
       push();
-      // 讓蜜蜂跟隨滑鼠，並利用 sin() 讓牠產生微微上下浮動的飛行感
       translate(x, y + sin(frameCount * 0.2) * 4);
       
-      // 根據移動方向水平翻轉蜜蜂
       if (!facingRight) {
         scale(-1, 1); 
       }
-      
-      // 稍微讓蜜蜂傾斜一個角度，看起來更有動態感
       rotate(-PI / 12); 
 
       noStroke();
-
-      // 1. 後面的翅膀 (半透明淡藍色)
       fill(255, 255, 255, 180);
       let wingFlutter = sin(frameCount * 1.5) * 2;
       ellipse(-2, -8, 12, 18 + wingFlutter);
       ellipse(6, -6, 14, 20 - wingFlutter);
-
-      // 2. 蜜蜂的刺 (黑色小三角形)
       fill(30);
       triangle(-12, 0, -18, -3, -18, 3);
 
-      // 3. 蜜蜂身體 (黃色膠囊形狀)
+      // 蜜蜂身體
       fill('#FFD100'); 
       rectMode(CENTER);
       rect(0, 0, 24, 14, 7); 
 
-      // 4. 身體上的黑色條紋
+      // 身體上的黑色條紋
       fill(30);
       rect(-3, 0, 4, 14);
       rect(5, 0, 4, 14);
 
-      // 5. 蜜蜂的眼睛
+      // 蜜蜂的眼睛
       fill(255); 
       circle(10, -2, 6);
       fill(30);  
@@ -243,17 +229,13 @@
           }
         }
 
-        // --- 碰撞偵測 ---
-        // 取得當前花朵中心的座標
+        // 碰撞偵測
         let currentTipX = bezierPoint(this.P0.x, this.P1.x, this.P2.x, this.P3.x, this.growT);
         let currentTipY = bezierPoint(this.P0.y, this.P1.y, this.P2.y, this.P3.y, this.growT);
 
         // 計算蜜蜂與花朵中心的距離
         let d = dist(beeX, beeY, currentTipX, currentTipY);
-        // 中心橘色圓圈的半徑大約是 this.r * 0.75
         let hitRadius = this.r * 0.75; 
-
-        // 如果花長出來了，而且蜜蜂進入了橘色圓圈範圍內
         if (this.bloomProgress > 0.5 && d < hitRadius) {
           this.isHovered = true;
         } else {
@@ -306,12 +288,9 @@
         if (this.bloomProgress > 0) {
           push();
           translate(currentTipX, currentTipY);
-          
-          // 使用 globalTime 來驅動角度，確保所有花朵加速時能完美連動
           let currentRot = this.baseAngle + (globalTime * this.rotSpeed);
           rotate(currentRot);
 
-          // 判斷當前顏色：如果被碰到就變成亮黃色，否則維持淡藍色
           if (this.isHovered) {
             fill(HOVER_PETAL_COLOR);
           } else {
