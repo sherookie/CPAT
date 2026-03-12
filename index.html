@@ -4,9 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bee</title>
- 
+  
+  <!-- 加入蜜蜂網頁小圖示 (Favicon) -->
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐝</text></svg>">
   
+  <!-- 引入 p5.js 函式庫 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
   
   <style>
@@ -14,7 +16,9 @@
       margin: 0;
       padding: 0;
       overflow: hidden;
+      /* 背景顏色改為透明 */
       background-color: transparent; 
+      /* 隱藏系統預設的滑鼠游標 */
       cursor: none; 
     }
 
@@ -25,35 +29,49 @@
 </head>
 <body>
   <script>
+    // 顏色設定
+    const PETAL_COLOR = '#C1E1DC';       // 清新淡灰藍色 (預設)
+    const HOVER_PETAL_COLOR = '#FFE156'; // 亮黃色 (被蜜蜂碰到時的顏色)
+    const CENTER_COLOR = '#F16E22';      // 飽和的橘色
+    const STEM_COLOR = '#0C6B37';        // 濃郁的深綠色
 
-    const PETAL_COLOR = '#C1E1DC';       
-    const HOVER_PETAL_COLOR = '#FFE156'; 
-    const CENTER_COLOR = '#F16E22';     
-    const STEM_COLOR = '#0C6B37';     
+    let cPetal, cHover; // 儲存 p5.js 顏色物件供漸變使用
 
     let flowers = [];
     
-    // 齒輪同步加速
+    // 全域時間與速度控制 (用於齒輪同步加速)
     let globalTime = 0;
     let globalSpeedMultiplier = 1;
     
-    // 蜜蜂面向控制
+    // 蜜蜂面向與飛行姿態控制
     let beeFacingRight = true;
+    let beePitch = 0; // 預設為水平 (0)
 
     function setup() {
       createCanvas(windowWidth, windowHeight);
+      cPetal = color(PETAL_COLOR);
+      cHover = color(HOVER_PETAL_COLOR);
       noCursor(); 
       initFlowers(); 
     }
 
     function draw() {
-      clear();
+      clear(); // 保持背景透明
 
-      // 蜜蜂位置
+      // 計算帶有浮動效果的實際蜜蜂位置與速度 (對齊視覺上的上下浮動)
+      // 將浮動頻率 0.2 改為 0.1，讓上下呼吸感更平緩，不會晃動太快
+      let actualBeeYOffset = sin(frameCount * 0.1) * 4;
       let beeX = (mouseX === 0 && mouseY === 0) ? width / 2 : mouseX;
-      let beeY = (mouseX === 0 && mouseY === 0) ? height / 2 : mouseY;
+      let beeY = (mouseX === 0 && mouseY === 0) ? height / 2 : mouseY + actualBeeYOffset;
+      
+      let prevBeeYOffset = sin((frameCount - 1) * 0.1) * 4;
+      let pBeeX = (pmouseX === 0) ? beeX : pmouseX;
+      let pBeeY = (pmouseY === 0) ? beeY : pmouseY + prevBeeYOffset;
+      
+      let beeVx = beeX - pBeeX;
+      let beeVy = beeY - pBeeY;
 
-      // 判斷蜜蜂的左右方向
+      // 判斷蜜蜂的左右方向 (比起前一幀的位置)
       if (mouseX > pmouseX) {
         beeFacingRight = true;
       } else if (mouseX < pmouseX) {
@@ -63,19 +81,37 @@
       // 偵測是否有任何花朵被碰到
       let anyHovered = false;
 
+      // 更新所有花朵的狀態
       for (let f of flowers) {
-        f.update(beeX, beeY);
+        f.update(beeX, beeY, beeVx, beeVy);
         if (f.isHovered) {
           anyHovered = true;
         }
       }
 
-      // 如果有碰到花，全域速度倍率提升
+      // 如果有碰到花，全域速度倍率提升 (平滑加速與減速)
       let targetSpeed = anyHovered ? 4 : 1; // 碰到時變 4 倍速
       globalSpeedMultiplier += (targetSpeed - globalSpeedMultiplier) * 0.1;
 
-      // 有齒輪同步
+      // 推進全域時間 (保證所有齒輪絕對同步)
       globalTime += globalSpeedMultiplier;
+
+      // 計算蜜蜂的俯仰角 (Pitch) - 根據滑鼠「實際移動的向量角度」
+      let mouseVx = mouseX - pmouseX;
+      let mouseVy = mouseY - pmouseY;
+      let mouseSpeed = sqrt(mouseVx * mouseVx + mouseVy * mouseVy);
+      
+      let targetPitch = 0; // 預設停下時恢復水平
+      if (mouseSpeed > 0.5) {
+        // 利用 atan2 計算移動向量的角度
+        // 因為蜜蜂圖片本身會左右翻轉，X 軸我們取絕對值，確保只計算上下傾斜
+        targetPitch = atan2(mouseVy, abs(mouseVx));
+        // 限制最大傾斜角，避免垂直移動時頭朝下/上得太誇張 (限制在正負 45 度)
+        targetPitch = constrain(targetPitch, -PI / 4, PI / 4);
+      }
+
+      // 使用更小的平滑係數 (0.08) 讓轉頭的動作更柔和，解決之前晃動太快的問題
+      beePitch += (targetPitch - beePitch) * 0.08;
 
       // 繪製所有花朵
       for (let f of flowers) {
@@ -83,37 +119,46 @@
       }
 
       // 在最上層繪製滑鼠小蜜蜂
-      drawBee(beeX, beeY, beeFacingRight);
+      drawBee(beeX, beeY, beeFacingRight, beePitch);
     }
 
-    function drawBee(x, y, facingRight) {
+    // --- 自定義繪製小蜜蜂 ---
+    function drawBee(x, y, facingRight, pitch) {
       push();
-      translate(x, y + sin(frameCount * 0.2) * 4);
+      // 因為 y 座標在傳入前就已經加上了 actualBeeYOffset，這裡不再重複加上 sin()
+      translate(x, y);
       
+      // 根據移動方向水平翻轉蜜蜂
       if (!facingRight) {
         scale(-1, 1); 
       }
-      rotate(-PI / 12); 
+      
+      // 根據飛行方向動態調整傾斜角度
+      rotate(pitch); 
 
       noStroke();
+
+      // 1. 後面的翅膀 (半透明淡藍色)
       fill(255, 255, 255, 180);
       let wingFlutter = sin(frameCount * 1.5) * 2;
       ellipse(-2, -8, 12, 18 + wingFlutter);
       ellipse(6, -6, 14, 20 - wingFlutter);
+
+      // 2. 蜜蜂的刺 (黑色小三角形)
       fill(30);
       triangle(-12, 0, -18, -3, -18, 3);
 
-      // 蜜蜂身體
+      // 3. 蜜蜂身體 (黃色膠囊形狀)
       fill('#FFD100'); 
       rectMode(CENTER);
       rect(0, 0, 24, 14, 7); 
 
-      // 身體上的黑色條紋
+      // 4. 身體上的黑色條紋
       fill(30);
       rect(-3, 0, 4, 14);
       rect(5, 0, 4, 14);
 
-      // 蜜蜂的眼睛
+      // 5. 蜜蜂的眼睛
       fill(255); 
       circle(10, -2, 6);
       fill(30);  
@@ -181,8 +226,18 @@
         this.bloomProgress = 0; 
         this.delayFrames = index * 6; 
         
+        // 獨立花瓣物理狀態陣列 (控制每片花瓣的彎曲與顏色)
+        this.petalsState = [];
+        for (let i = 0; i < this.numPetals; i++) {
+          this.petalsState.push({ bend: 0, vel: 0, glow: 0 });
+        }
+        
         // 互動狀態
         this.isHovered = false; 
+        
+        // 花莖彈簧物理屬性
+        this.stemOffset = createVector(0, 0);
+        this.stemVel = createVector(0, 0);
         
         this.P0 = createVector(targetX, height + 50); 
         this.P3 = createVector(targetX, targetY); 
@@ -190,6 +245,7 @@
         let curveDir = random(-50, 50); 
         this.P1 = createVector(this.P0.x + curveDir, this.P0.y - (this.P0.y - targetY) * 0.3);
         this.P2 = createVector(this.P3.x - curveDir, this.P3.y + (this.P0.y - targetY) * 0.3);
+        this.baseP2 = this.P2.copy(); // 記錄初始的 P2 位置，用於偏移計算
         
         this.leaves = [];
         let numLeaves = floor(random(1, 4)); 
@@ -211,7 +267,7 @@
         }
       }
 
-      update(beeX, beeY) {
+      update(beeX, beeY, beeVx = 0, beeVy = 0) {
         if (frameCount > this.delayFrames) {
           if (this.growT < 1) {
             this.growT += 0.025; 
@@ -229,15 +285,78 @@
           }
         }
 
-        // 碰撞偵測
+        // --- 花莖彈簧物理運算 (Spring Physics) ---
+        let k = 0.08;    // 彈簧恢復力常數 (越小越軟)
+        let damp = 0.85; // 阻尼 (控制彈回的搖晃次數)
+        this.stemVel.x += -k * this.stemOffset.x;
+        this.stemVel.y += -k * this.stemOffset.y;
+        this.stemVel.mult(damp);
+        this.stemOffset.add(this.stemVel);
+
+        // 更新貝茲曲線端點與控制點，讓整株植物彎曲
+        this.P3.x = this.targetX + this.stemOffset.x;
+        this.P3.y = this.targetY + this.stemOffset.y;
+        this.P2.x = this.baseP2.x + this.stemOffset.x * 0.6; // 控制點跟著位移，讓彎曲更自然
+        this.P2.y = this.baseP2.y + this.stemOffset.y * 0.6;
+
+        // --- 碰撞偵測與花瓣獨立物理 ---
+        // 取得當前花朵中心的座標
         let currentTipX = bezierPoint(this.P0.x, this.P1.x, this.P2.x, this.P3.x, this.growT);
         let currentTipY = bezierPoint(this.P0.y, this.P1.y, this.P2.y, this.P3.y, this.growT);
 
+        // 計算花朵當前的總旋轉角度
+        let currentRot = this.baseAngle + (globalTime * this.rotSpeed);
+
+        // 更新每一片花瓣的獨立物理狀態
+        for (let i = 0; i < this.numPetals; i++) {
+          let pState = this.petalsState[i];
+
+          if (this.bloomProgress > 0.5) {
+            // 計算這片花瓣的絕對座標 (取中段偏外側)
+            let pAngle = currentRot + (TWO_PI / this.numPetals) * i;
+            let pRadius = this.innerOffset + (this.pLength * this.bloomProgress * 0.7);
+            let pX = currentTipX + cos(pAngle) * pRadius;
+            let pY = currentTipY + sin(pAngle) * pRadius;
+
+            // 判斷蜜蜂是否碰到這片花瓣
+            let distToPetal = dist(beeX, beeY, pX, pY);
+            if (distToPetal < this.wTip * 1.5) {
+              // 1. 碰到時增加發光值 (獨立變色)
+              pState.glow = 1.0;
+              
+              // 2. 撥動的物理力 (透過外積計算，根據蜜蜂滑動的方向推動花瓣)
+              let dirX = cos(pAngle);
+              let dirY = sin(pAngle);
+              let cross = dirX * beeVy - dirY * beeVx;
+              pState.vel += cross * 0.004; 
+              
+              // 3. 蜜蜂翅膀煽動造成的微風擾動
+              pState.vel += random(-0.02, 0.02);
+            }
+          }
+
+          // 彈簧物理運算 (Hooke's Law)
+          pState.vel += -0.15 * pState.bend; // 彈力拉回
+          pState.vel *= 0.82;                // 阻尼減速
+          pState.bend += pState.vel;         // 更新彎曲角度
+          pState.bend = constrain(pState.bend, -PI/2.5, PI/2.5); // 限制彎曲極限
+          
+          // 發光衰減
+          pState.glow *= 0.85;
+        }
+
         // 計算蜜蜂與花朵中心的距離
         let d = dist(beeX, beeY, currentTipX, currentTipY);
+        // 中心橘色圓圈的半徑大約是 this.r * 0.75
         let hitRadius = this.r * 0.75; 
+
+        // 如果花長出來了，而且蜜蜂進入了橘色圓圈範圍內
         if (this.bloomProgress > 0.5 && d < hitRadius) {
           this.isHovered = true;
+          
+          // 賦予花莖推力 (根據蜜蜂飛行的瞬間速度)
+          this.stemVel.x += beeVx * 0.04;
+          this.stemVel.y += beeVy * 0.04;
         } else {
           this.isHovered = false;
         }
@@ -288,19 +407,25 @@
         if (this.bloomProgress > 0) {
           push();
           translate(currentTipX, currentTipY);
+          
+          // 使用 globalTime 來驅動角度，確保所有花朵加速時能完美連動
           let currentRot = this.baseAngle + (globalTime * this.rotSpeed);
           rotate(currentRot);
-
-          if (this.isHovered) {
-            fill(HOVER_PETAL_COLOR);
-          } else {
-            fill(PETAL_COLOR);
-          }
 
           noStroke();
           for (let i = 0; i < this.numPetals; i++) {
             push();
-            rotate((TWO_PI / this.numPetals) * i);
+            
+            // 加上該片花瓣獨立的彎曲角度
+            let pState = this.petalsState[i];
+            rotate((TWO_PI / this.numPetals) * i + pState.bend);
+            
+            // 根據該花瓣的受觸摸狀態，進行顏色漸變 (取代原本的整朵變色)
+            let currentColor = lerpColor(cPetal, cHover, pState.glow);
+            
+            // 如果整朵花中心被踩中，也強制變色
+            if (this.isHovered) currentColor = cHover;
+            fill(currentColor);
             
             let currentL = this.pLength * this.bloomProgress;
             let startX = this.innerOffset;
